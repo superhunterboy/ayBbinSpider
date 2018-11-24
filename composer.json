@@ -1,0 +1,17 @@
+{
+    "require": {
+        "workerman/workerman": "^3.5",
+        "guzzlehttp/guzzle": "~6.0",
+        "symfony/dom-crawler": "^3.3",
+        "psr/log": "^1.0",
+        "symfony/css-selector": "^3.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Weiming\\": "src/"
+        },
+        "files": [
+            "src/Funs/php-html-css-js-minifier.php"
+        ]
+    }
+}
