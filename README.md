@@ -1,3 +1,3 @@
 # aoyaBbinSpider
 
-just study crawler
+just for learning of crawler for me only
