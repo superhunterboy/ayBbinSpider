@@ -13,14 +13,14 @@ class BBINCrawlerTask
 
     public static function crawlCashWithDrawal()
     {
-        //file_put_contents(__DIR__.'/../../data/'.date('Y-m-d').'crawlCashWithDrawal.log',date('H:i:s')."\n",FILE_APPEND);
         $retMsg = null;
         // 列表页
+        $config  = require __DIR__ . '/../../config/settings.php';
         $html = BBINSpider::getInstance()->cashWithDrawal();
         $html = minify_html(minify_js($html));
         // var_dump($html);
         // 登录后的情况
-        if (!empty($html) && strpos($html, '重新登入') === false && $html != "<script>window.open('http://js168.9661p.com','_top')</script>" && strpos($html, '维护通知') === false && strpos($html, '维护公告') === false) {
+        if (!empty($html) && strpos($html, 'System Error') === false && $html != "<script>window.open('".str_replace('https', 'http', $config['bbin']['domain'])."','_top')</script>" && strpos($html, '维护通知') === false && strpos($html, '维护公告') === false) {
             $tableData       = [];
             $searchtml       = null;
             $module          = null;
@@ -37,40 +37,41 @@ class BBINCrawlerTask
             }
             if ($module == 'CashWithdrawal' && $hall_id && $MaxWithdrawalID) {
                 // 只查询 0 处理中 包含 未处理、已锁定两种情况
+                // $searchtml = file_get_contents(__DIR__.'/../../data/test.log');
                 $searchtml = BBINSpider::getInstance()->SearchCashWithDrawal(['hall_id' => $hall_id, 'MaxWithdrawalID' => $MaxWithdrawalID]);
-                // var_dump($searchtml);
             }
             if ($searchtml) {
-                $config  = require __DIR__ . '/../../config/settings.php';
                 $crawler = new Crawler();
-                $crawler->addHtmlContent($searchtml);
+                $crawler->addHtmlContent($searchtml);//file_put_contents(__DIR__.'/../../data/searchtml.html',$searchtml);
                 try {
                     $crawler->filterXPath('//form[contains(@name, "IPL_Form") and @name!="IPL_Form"]')->each(function (Crawler $tr_node, $tr_i) use (&$tableData, $config) {
                         $tr_node->filterXPath('//tr/td')->each(function (Crawler $td_node, $td_i) use (&$tableData, $tr_i, $config) {
-                            if ($td_i == 9) {
+                            if ($td_i == 10) {
                                 $memberInfo                        = $td_node->filterXPath('//div')->attr('onclick');
-                                $memberInfo                        = explode("','", substr($memberInfo, 15, strlen($memberInfo) - 24));
-                                $memberId                          = $memberInfo[0];
-                                $member                            = json_decode(BBINSpider::getInstance()->getMemberInfo($memberId), true); // <script>window.open('http://js168.9661p.com','_top')</script>
+                                $memberInfo                        = explode("','", $memberInfo);
+                                $memberId                          = substr($memberInfo[0],15);
+                                $member                            = json_decode(BBINSpider::getInstance()->getMemberInfo($memberId), true);
                                 $member['tel']                     = Utils::desecbEncrypt($member['tel'], $config['key']);
                                 $member['account']                 = Utils::desecbEncrypt($member['account'], $config['key']);
                                 $tableData[$tr_i][$td_i]['id']     = $memberId;
                                 $tableData[$tr_i][$td_i]['member'] = $member; // 会员信息
                                 $tableData[$tr_i][$td_i]['value']  = $td_node->filterXPath('//div/font')->text(); // 出款资讯
-                            } elseif ($td_i == 16) {
+                            } elseif ($td_i == 17) {
                                 // 三种状态：1 xxx已锁定（不是本人操作） 2 锁定，确定，取消，拒绝 3 解锁，确定，取消，拒绝
-                                $status = trim($td_node->filterXPath('//div')->text());
-                                if (!in_array($status, ['确定', '取消', '拒绝']) && strpos($status, '已锁定') === false) {
-                                    $btn1 = $td_node->filterXPath('//div/input')->eq(0)->attr('value'); // 解锁 or 锁定
-                                    // $btn2 = $td_node->filterXPath('//div/input')->eq(1)->attr('value');  // 确定
-                                    // $btn3 = $td_node->filterXPath('//div/input')->eq(2)->attr('value');  // 取消
-                                    // $btn4 = $td_node->filterXPath('//div/input')->eq(3)->attr('value');  // 拒绝
-                                    if ($btn1 == '解锁') {
-                                        $status = '已锁定';
-                                    } elseif ($btn1 == '锁定') {
+                                $status = trim($td_node->filterXPath('//div')->attr('class'));
+                                if($status=='status-0')
+                                {
+                                    $btn1 = $td_node->filterXPath('//div/input')->eq(0)->attr('class'); // 解锁 or 锁定
+                                    if($btn1=='set_lock')
                                         $status = '未处理';
-                                    }
+                                    else
+                                        $status = '已锁定';
                                 }
+                                elseif($status=='status-1') $status = '确定';
+                                elseif($status=='status-2') $status = '取消';
+                                elseif($status=='status-3') $status = '拒绝';
+                                elseif($status=='status-4') $status = '已锁定';
+                                else $status = '已锁定';
                                 $tableData[$tr_i][$td_i] = $status;
                             } else {
                                 $tableData[$tr_i][$td_i] = trim($td_node->filterXPath('//div')->text());
@@ -79,7 +80,7 @@ class BBINCrawlerTask
                     });
                 } catch (Exception $e) {
                     $retMsg = Utils::sendInnerMessage(['ret' => 1003, 'msg' => '爬虫无法识别页面元素']);
-                }
+                }//print_r($tableData);die;
                 if ($tableData) {
                     /**
                      *   Array
@@ -144,34 +145,95 @@ class BBINCrawlerTask
                     $loginBeforeHtml = minify_html(minify_js($loginBefore));
                     // 可以正常登录的情况
                     if (!empty($loginBeforeHtml) && strpos($loginBeforeHtml, '维护通知') === false && strpos($loginBeforeHtml, '维护公告') === false) {
-                        $lang     = null;
-                        $username = null;
-                        $password = null;
-                        $otp      = null;
-                        $crawler  = new Crawler();
-                        $crawler->addHtmlContent($loginBeforeHtml);
-                        try {
-                            $lang     = $crawler->filterXPath('//*[@id="lang"]')->attr('name');
-                            $username = $crawler->filterXPath('//*[@id="username"]')->attr('name');
-                            $password = $crawler->filterXPath('//*[@id="passwd"]')->attr('name');
-                            $otp      = $crawler->filterXPath('//*[@id="OTP"]')->attr('name');
-                        } catch (Exception $e) {
-                            $retMsg = Utils::sendInnerMessage(['ret' => 1003, 'msg' => '爬虫无法识别页面元素']);
-                        }
-                        if ($lang == 'lang' && $username == 'username' && $password = 'passwd' && $otp == 'OTP') {
+//                        $lang     = null;
+//                        $username = null;
+//                        $password = null;
+//                        $otp      = null;
+//                        $crawler  = new Crawler();
+//                        $crawler->addHtmlContent($loginBeforeHtml);
+//                        try {
+//                            $lang     = $crawler->filterXPath('//*[@id="lang"]')->attr('name');
+//                            $username = $crawler->filterXPath('//*[@id="username"]')->attr('name');
+//                            $password = $crawler->filterXPath('//*[@id="passwd"]')->attr('name');
+//                            $otp      = $crawler->filterXPath('//*[@id="OTP"]')->attr('name');
+//                        } catch (Exception $e) {
+//                            $retMsg = Utils::sendInnerMessage(['ret' => 1003, 'msg' => '爬虫无法识别页面元素']);
+//                        }
+//                        if ($lang == 'lang' && $username == 'username' && $password = 'passwd' && $otp == 'OTP') {
                             // 模拟登录
                             $retHtml = BBINSpider::getInstance()->login($otpVal);
                             //var_dump($retHtml);
                             // {"code":200,"status":"OK","data":{"result":true,"session_id":"865d553b27eb3995383cdef77e603a65a640b425","redirect":"\/user\/home\/note"}}
                             // {"code":200,"status":"OK","data":{"result":false,"message":"OTP\u5bc6\u7801\u9519\u8bef\uff01\u8bf7\u8f93\u5165\u6b63\u786e\u5bc6\u7801","n":420}}
                             $retJson = json_decode($retHtml, true);
-                            if ($retJson && $retJson['data']['result']) {
-                                // var_dump(BBINSpider::getInstance()->cashWithDrawal());
+                            if ($retJson && $retJson['result']) {   // 如果登录成功
+                                $cookieFile = __DIR__ . '/../../data/cookies.txt';
+                                $cookies = file_get_contents($cookieFile);
+                                $aCookies = json_decode($cookies, true);
+                                foreach ($aCookies as $k=>$item)
+                                {
+                                    if(in_array($item['Name'],['sid','lang','langcode','langx']))
+                                    {
+                                        unset($aCookies[$k]);
+                                    }
+                                }
+                                $sDomain = str_replace('https://', '', $config['bbin']['domain']);
+                                $aCookies[] = [
+                                    'Name' =>'sid',
+                                    'Value'=>$retJson['data']['session_id'],
+                                    'Domain'=>$sDomain,
+                                    'Path'=>'/',
+                                    'Max-Age'=>NULL,
+                                    'Expires'=>NULL,
+                                    'Secure'=>NULL,
+                                    'Discard'=>NULL,
+                                    'HttpOnly'=>false,
+                                ];
+                                $aCookies[] = [
+                                    'Name' =>'lang',
+                                    'Value'=>'zh-cn',
+                                    'Domain'=>$sDomain,
+                                    'Path'=>'/',
+                                    'Max-Age'=>NULL,
+                                    'Expires'=>NULL,
+                                    'Secure'=>NULL,
+                                    'Discard'=>NULL,
+                                    'HttpOnly'=>false,
+                                ];
+                                $aCookies[] = [
+                                    'Name' =>'langcode',
+                                    'Value'=>'zh-cn',
+                                    'Domain'=>$sDomain,
+                                    'Path'=>'/',
+                                    'Max-Age'=>NULL,
+                                    'Expires'=>NULL,
+                                    'Secure'=>NULL,
+                                    'Discard'=>NULL,
+                                    'HttpOnly'=>false,
+                                ];
+                                $aCookies[] = [
+                                    'Name' =>'langx',
+                                    'Value'=>'zh-cn',
+                                    'Domain'=>$sDomain,
+                                    'Path'=>'/',
+                                    'Max-Age'=>NULL,
+                                    'Expires'=>NULL,
+                                    'Secure'=>NULL,
+                                    'Discard'=>NULL,
+                                    'HttpOnly'=>false,
+                                ];
+                                file_put_contents($cookieFile,json_encode($aCookies));
+
+                                //print_r(BBINSpider::getInstance()->cashWithDrawal());die;
                                 Utils::sendInnerMessage(['ret' => 1006, 'msg' => 'OTP密码正确，谢谢！']);
                             } else {
-                                Utils::sendInnerMessage(['ret' => 1001, 'msg' => 'OTP密码错误，请输入正确OTP密码！']);
+                                if($retJson['message'] == 'In maintenance')
+                                {
+                                    Utils::sendInnerMessage(['ret' => 1002, 'msg' => 'BBIN系统维护中！']);
+                                }
+                                else Utils::sendInnerMessage(['ret' => 1001, 'msg' => 'OTP密码错误，请输入正确OTP密码！']);
                             }
-                        }
+//                        }
                     }
                     else    // 不能正常登录的情况（登录页面打不开，如系统维护的情况）
                     {

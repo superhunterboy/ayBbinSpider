@@ -50,7 +50,7 @@ class Request
         catch (Exception $e)
         {
             //http请求失败或超时
-            file_put_contents(__DIR__.'/../../data/'.date('Y-m-d').'_FAILED-HTTP-REQUEST.log',date('H:i:s')." url=".$url."\n\n",FILE_APPEND);
+            file_put_contents(__DIR__.'/../../data/'.date('Y-m-d').'_FAILED-HTTP-REQUEST.log',date('H:i:s')." error=".$e->getMessage()."\n\n",FILE_APPEND);
 
         }
         return null;

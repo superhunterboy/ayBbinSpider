@@ -11,7 +11,7 @@ class BBINSpider
 
     private $request = null;
 
-    private $bbinUrl = 'https://js168.9661p.com'; // https://js168.9661i.com
+    private $bbinUrl;
 
     private static $_instance = null;
 
@@ -19,6 +19,7 @@ class BBINSpider
     {
         $this->request = Request::getInstance();
         $this->config  = require __DIR__ . '/../../config/settings.php';
+        $this->bbinUrl = $this->config['bbin']['domain'];
     }
 
     private function __clone()
@@ -41,18 +42,18 @@ class BBINSpider
     public function login($otp)
     {
         return $this->request->send(
-            $this->bbinUrl . '/user/login',
+            $this->bbinUrl . '/hex/login',
             [
-                'form_params' => [
-                    'lang'     => 'zh-cn',
+                'json' => [
+                    //        'lang'     => 'zh-cn',
                     'username' => $this->config['bbin']['username'],
-                    'passwd'   => $this->config['bbin']['password'],
-                    'OTP'      => $otp,
+                    'password' => $this->config['bbin']['password'],
+                    'otp'      => $otp,
                 ],
             ],
             'POST',
             [
-                'Referer'          => $this->bbinUrl,
+                'Referer' => $this->bbinUrl.'/vi/login',
                 'X-Requested-With' => 'XMLHttpRequest',
             ]
         );
@@ -75,6 +76,40 @@ class BBINSpider
     }
 
     /**
+     * 新支付平台
+     * @return String
+     */
+    public function showOnlinePayOrderPage()
+    {
+        return $this->request->send(
+            $this->bbinUrl . '/agv3/cl/index.php?sid=&module=Payment&method=OrderSearch',
+            [],
+            'GET',
+            [
+                'Referer' => $this->bbinUrl . '/agv3/cl/index.php?module=Payment&method=StoreList&status=1',
+            ]
+        );
+    }
+
+    /**
+     * 新支付平台
+     * @return String
+     */
+    public function searchOnlinePayOrder($params)
+    {
+        return $this->request->send(
+            $this->bbinUrl . '/agv3/cl/index.php?sid=&module=Payment&method=OrderSearch',
+            [
+                'form_params' => $params,
+            ],
+            'POST',
+            [
+                'Referer' => $this->bbinUrl.'/agv3/cl/index.php?sid=&module=Payment&method=OrderSearch',
+            ]
+        );
+    }
+
+    /**
      * 根据条件查询出款记录
      * @param array $params 查询参数
      */
@@ -82,7 +117,7 @@ class BBINSpider
     {
         $MaxWithdrawalID = $params['MaxWithdrawalID'];
         $hall_id         = $params['hall_id'];
-        $rows            = $params['rows'] ?? 300;
+        $rows            = $params['rows'] ?? 100;
         $date_start      = $params['date_start'] ?? date("Y-m-d H:i:s", strtotime("-7 day"));
         $date_end        = $params['date_end'] ?? date("Y-m-d H:i:s", strtotime("+1 hours"));
         return $this->request->send(
@@ -183,7 +218,7 @@ class BBINSpider
     public function loginBefore()
     {
         return $this->request->send(
-            $this->bbinUrl . '/user/login',
+            $this->bbinUrl . '/vi/login',
             [],
             'GET',
             [
@@ -528,7 +563,7 @@ class BBINSpider
             [],
             'GET',
             [
-                'Referer'          => $this->bbinUrl . '/user/list',
+                'Referer'          => $this->bbinUrl . '/user/list?Status=All&role=All&dispensing=all&SearchField=username&SearchValue=',
                 'X-Requested-With' => 'XMLHttpRequest',
             ]
         );

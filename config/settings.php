@@ -11,8 +11,11 @@ return [
     'websocket' => [
     ],
     'bbin'      => [
-        'username' => '9fox',
-        'password' => 'aa123456',// 'a654321',
+        'domain'   => 'https://js168.9661qw.com',
+        //'username' => '9fox',
+        //'password' => 'bb123456',
+        'username' => 'jishikaifa',   //开发测试用
+        'password' => 'aa123456',     //开发测试用
     ],
     'key'       => '35a7102186059dr8a1557f1e9c90ca47075d7c4e',
     'api'       => [
@@ -21,5 +24,7 @@ return [
         'add_reports' => 'http://ay2.com/addReportDatas',
         'add_levels'            => 'http://ay2.com/addLevels',
         'update_members_level'  => 'http://ay2.com/updateMembersLevel',
+        //'add_online_pay' => 'http://157a.com/api/addOnlinePay',
+        'add_online_pay' => 'http://www.chart.local/api/addOnlinePay',
     ],
 ];
